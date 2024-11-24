@@ -23,5 +23,8 @@ class EnvironmentSerializer(serializers.ModelSerializer):
         }
 
 class FileSerializer(serializers.Serializer):
-    title = serializers.CharField(max_length=50)
+    filename = serializers.CharField(max_length=50)
     file = serializers.FileField()
+
+class FileNameSerializer(serializers.Serializer):
+    filename = serializers.CharField(max_length=50)
