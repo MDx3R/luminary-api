@@ -31,27 +31,26 @@ api/v1/environments/ {list: GET, create: POST}
 api/v1/environments/{pk}/ {retrieve: GET, create: POST, update: PUT, partial_update: PATCH, destroy: DELETE}
 
 /env
-api/v1/environments/{pk}/drop {drop: POST} -
+api/v1/environments/{pk}/drop {drop: POST}
 
 /files
-api/v1/environments/{pk}/load-file {loadFile: POST} +
-api/v1/environments/{pk}/update-file {updateFile: POST} -
-api/v1/environments/{pk}/remove-file {removeFile: POST} +
-api/v1/environments/{pk}/read-file {readFile: GET} -
-api/v1/environments/{pk}/list-files {listFiles: GET} +-
+api/v1/environments/{pk}/load-file {loadFile: POST}
+api/v1/environments/{pk}/update-file {updateFile: POST}
+api/v1/environments/{pk}/remove-file {removeFile: POST}
+api/v1/environments/{pk}/read-file {readFile: GET}
+api/v1/environments/{pk}/list-files {listFiles: GET}
 
 /model
-api/v1/environments/{pk}/generate {generate: POST} +
-api/v1/environments/{pk}/send-prompt {sendPrompt: POST} +
-api/v1/environments/{pk}/commit-files {commitFiles: POST} +-
-api/v1/environments/{pk}/clear-context {clearContext: POST} -
+api/v1/environments/{pk}/generate {generate: POST}
+api/v1/environments/{pk}/send-prompt {sendPrompt: POST}
+api/v1/environments/{pk}/commit-files {commitFiles: POST}
+api/v1/environments/{pk}/get-context {getContext: GET}
+api/v1/environments/{pk}/clear-context {clearContext: POST}
 """
 class EnvironmentViewSet(viewsets.ModelViewSet):
     queryset = Environment.objects.all()
     serializer_class = EnvironmentSerializer
     permissions_classes = [permissions.AllowAny]
-
-    #environmentService = EnvironmentService()
     
     """Endpoints: """
     """For Environment:"""
@@ -114,6 +113,12 @@ class EnvironmentViewSet(viewsets.ModelViewSet):
 
         return JsonResponse({}, status=status.HTTP_200_OK)
     
+    @action(url_path="get-context", detail=True, methods=[HTTPMethod.GET])
+    def getContext(self, request: HttpRequest, pk: str) -> JsonResponse:
+        """Получение истории сообщений переписки с моделью"""
+
+        return JsonResponse({}, status=status.HTTP_200_OK)
+
     @action(url_path="clear-context", detail=True, methods=[HTTPMethod.POST])
     def clearContext(self, request: HttpRequest, pk: str) -> JsonResponse:
         """Очистка контекста модели"""
