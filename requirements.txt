@@ -5,3 +5,4 @@ psycopg2==2.9.10
 python-dotenv==1.0.1
 sqlparse==0.5.2
 tzdata==2024.2
+openai==1.46.0
