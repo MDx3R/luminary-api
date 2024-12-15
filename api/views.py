@@ -1,16 +1,19 @@
 from django.http import JsonResponse, StreamingHttpResponse
-from rest_framework import status, permissions, viewsets, serializers
+from rest_framework import status, permissions, views, viewsets, serializers
 from rest_framework.request import HttpRequest
 from rest_framework.response import Response
 from rest_framework.decorators import action, api_view
+from rest_framework.authtoken.models import Token
 
 from django.db.models import Manager
+from django.contrib.auth import authenticate
 
 from drf_spectacular.utils import (
     extend_schema, 
     extend_schema_view, 
     OpenApiResponse,
-    OpenApiExample
+    OpenApiExample,
+    OpenApiParameter,
 )
 from drf_spectacular.types import OpenApiTypes
 
@@ -21,6 +24,7 @@ from functools import wraps
 from .models import User, Environment
 from .serializers import (
     UserSerializer, 
+    LoginSerializer,
     EnvironmentSerializer, 
     FileSerializer,
     FileNameSerializer,
@@ -53,43 +57,70 @@ def serialize(queryset: Manager, serializers: List[type[serializers.Serializer]]
         return wrapper
     return decorator
 
-"""
-Endpoints:  
+@extend_schema_view(
+    post=extend_schema(
+        summary="Авторизация",
+        description="Авторизация на основе постоянных токенов.",
+        # parameters=[
+        #     OpenApiParameter(
+        #         name="username",
+        #         description="Имя пользователя",
+        #         type=str,
+        #         location=OpenApiParameter.QUERY,
+        #         required=True,
+        #     ),
+        #     OpenApiParameter(
+        #         name="password",
+        #         description="Пароль",
+        #         type=str,
+        #         location=OpenApiParameter.QUERY,
+        #         required=True,
+        #     ),
+        # ],
+        request=LoginSerializer,
+        responses={
+            200: {
+                "description": "Успешная авторизация",
+                "type": "object",
+                "properties": {
+                    "token": {"type": "string", "description": "Токен доступа"},
+                    "user": {"$ref": "#/components/schemas/User"}, # ссылка на UserSerializer
+                },
+            },
+            401: {
+                "description": "Неверные учетные данные",
+                "type": "object",
+                "properties": {
+                    "detail": {"type": "string", "description": "Сообщение об ошибке"},
+                },
+            },
+        },
+    )
+)
+class LoginView(views.APIView):
+    permissions_classes = [permissions.AllowAny]
 
-/
-api/v1/users/ {list: GET, create: POST}
-api/v1/users/{pk}/ {retrieve: GET, update: PUT, partial_update: PATCH, destroy: DELETE}
-"""
+    def post(self, request: HttpRequest):
+        username = request.data.get("username")
+        password = request.data.get("password")
+        user = authenticate(username=username, password=password)
+        if (user):
+            token, created = Token.objects.get_or_create(user=user)
+            return Response(
+                {
+                    "token": token.key, 
+                    "user": UserSerializer(user).data
+                }, 
+                status=status.HTTP_200_OK
+            )
+        
+        return Response({"detail": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
 @extend_schema(tags=["Users"])
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permissions_classes = [permissions.AllowAny]
-    
-"""
-Endpoints:  
-
-/
-api/v1/environments/ {list: GET, create: POST}
-api/v1/environments/{pk}/ {retrieve: GET, update: PUT, partial_update: PATCH, destroy: DELETE}
-
-/env
-api/v1/environments/{pk}/drop {drop: POST}
-
-/files
-api/v1/environments/{pk}/load-file {loadFile: POST}
-api/v1/environments/{pk}/update-file {updateFile: POST}
-api/v1/environments/{pk}/remove-file {removeFile: DELETE}
-api/v1/environments/{pk}/read-file {readFile: GET}
-api/v1/environments/{pk}/list-files {listFiles: GET}
-
-/model
-api/v1/environments/{pk}/generate {generate: POST}
-api/v1/environments/{pk}/send-prompt {sendPrompt: POST}
-api/v1/environments/{pk}/commit-files {commitFiles: POST}
-api/v1/environments/{pk}/get-context {getContext: GET}
-api/v1/environments/{pk}/clear-context {clearContext: DELETE}
-"""
 
 @extend_schema(tags=["Environments"])
 @extend_schema_view(
@@ -339,7 +370,7 @@ class EnvironmentViewSet(viewsets.ModelViewSet):
     @serialize(queryset=queryset, serializers=[PromptSerializer])
     def sendPrompt(self, request: HttpRequest, pk: str) -> JsonResponse:
         """Отправка произвольного запроса модели"""
-        print("controller:", request.data.get("prompt", ''))
+
         return self.environmentService.sendPrompt(pk, request.data.get("prompt", ''))
     
     @action(url_path="commit-files", detail=True, methods=[HTTPMethod.POST])
