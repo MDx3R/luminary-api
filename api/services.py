@@ -34,7 +34,13 @@ class FileService(Service):
 
     def listFiles(self, path: str) -> List[str]:
         """Возвращает список файлов директории"""
+
         return self.fileManager.listFiles(path=path)
+    
+    def listFilesStat(self, path: str) -> List[str]:
+        """Возвращает список файлов директории"""
+
+        return self.fileManager.listFilesStat(path=path)
     
     def readFile(self, path: str, filename: str) -> str:
         """Возвращает содержимое файла с именем `filename`"""
@@ -98,7 +104,7 @@ class GPTService(Service):
         commited: bool = False
 
         def clear(self):
-            self.messages = self.messages[:2]
+            self.messages = self.messages[:1]
             self.tokens = 0
             self.commited = False
 
@@ -148,6 +154,13 @@ class GPTService(Service):
         if (chat.tokens > self.tokenLimit):
             raise Exception(f"token limit of {self.tokenLimit} exeeded")
 
+        chat.messages.append(
+            {
+                "role": "user",
+                "content": prompt
+            }
+        )
+
         completion = self.connection.client.chat.completions.create(
             model=self.model,
             messages=chat.messages
@@ -157,12 +170,8 @@ class GPTService(Service):
         print("used tokens:", completion.usage.total_tokens)
         print("total tokens:", chat.tokens)
 
-        chat.messages.append({
-                "role": "user",
-                "content": prompt
-            }
-        )
-        chat.messages.append({
+        chat.messages.append(
+            {
                 "role": "assistant",
                 "content": completion.choices[0].message.content
             }
@@ -239,7 +248,7 @@ class EnvironmentService(Service):
     def listFiles(self, id: str) -> JsonResponse:
         """Получает информацию о файлах в окружении"""
         return JsonResponse(
-            self.fileService.listFiles(id),
+            self.fileService.listFilesStat(id),
             safe=False,
             status=status.HTTP_200_OK,
         )
@@ -252,7 +261,7 @@ class EnvironmentService(Service):
             # raise Exception("files not commited")
             self.commitFiles(id)
 
-        if (len(prompt) == 0):
+        if (prompt == False and len(prompt) == 0):
             prompt = self.gptService.prompts.get("generate")
         else:
             prompt = self.gptService.prompts.get("generate-instructed") \
@@ -276,11 +285,13 @@ class EnvironmentService(Service):
 
     def getChatContext(self, id: str) -> JsonResponse:
         """Получает контекст модели по идентификатору окружения"""
-        context = [x for x in self.gptService.getConversation(id).messages if "system" not in x]
+        context = [x for x in self.gptService.getConversation(id).messages if x["role"] != "system"]
 
-        return JsonResponse({
-                "context": context
-            }, status=status.HTTP_200_OK)
+        return JsonResponse(
+            context,
+            safe=False,
+            status=status.HTTP_200_OK
+        )
 
     def clearChatContext(self, id: str) -> JsonResponse:
         """Очищает контекст модели"""

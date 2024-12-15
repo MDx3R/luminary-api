@@ -1,5 +1,5 @@
 import os
-from typing import Iterator, List, overload, Union
+from typing import Iterator, List, Union, Dict
 from abc import ABC, abstractmethod
 
 from .connections import FTPConnection
@@ -25,6 +25,11 @@ class FileManager(ABC):
     
     @abstractmethod
     def listFiles(self, path: str) -> List[str]:
+        """Выводит список имен файлов в директории, указанной в path"""
+        pass
+
+    @abstractmethod
+    def listFilesStat(self, path: str) -> List[Dict]:
         """Выводит список сведений о файлах в директории, указанной в path"""
         pass
     
@@ -96,6 +101,17 @@ class LocalFileManager(FileManager):
         return os.listdir(f'{self.basePath}/{path}')
     
     def listFiles(self, path: str) -> List[str]:
+        """Выводит список имен файлов в директории, указанной в path"""
+        result = []
+        for name in self.list(path):
+            if (name.count('.') == 0): # This means name is dir
+                continue
+
+            result.append(name)
+
+        return result
+
+    def listFilesStat(self, path: str) -> List[Dict]:
         """Выводит список сведений о файлах в директории, указанной в path"""
         result = []
         for name in self.list(path):
