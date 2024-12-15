@@ -5,6 +5,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import action, api_view
 from rest_framework.authtoken.models import Token
 
+from rest_framework.exceptions import (
+    APIException, 
+    NotFound
+)
+
 from django.db.models import Manager
 from django.contrib.auth import authenticate
 
@@ -12,6 +17,7 @@ from drf_spectacular.utils import (
     extend_schema, 
     extend_schema_view, 
     OpenApiResponse,
+    OpenApiRequest,
     OpenApiExample,
     OpenApiParameter,
 )
@@ -31,6 +37,7 @@ from .serializers import (
     PromptSerializer,
     GeneratePromptSerializer,
 )
+from .responses import ExceptionResponse
 from .services import EnvironmentService
 
 # Create your views here.
@@ -39,21 +46,30 @@ def serialize(queryset: Manager, serializers: List[type[serializers.Serializer]]
     """Декоратор для проверки объекта на существование по pk и обработки других ошибок"""
     def decorator(func):
         @wraps(func)
-        def wrapper(self, request: HttpRequest, pk: str, **kwargs):
-            if (queryset.filter(id=pk).exists() == False):
+        def wrapper(self: viewsets.ModelViewSet, request: HttpRequest, pk: str, **kwargs):
+            try:
+                obj = self.get_object()
+            except NotFound as e:
                 return JsonResponse(
                     {"detail": "Not found."}, 
-                    status=status.HTTP_404_NOT_FOUND)
-            if (all([x(data=request.data).is_valid() for x in serializers]) == False):
-                return JsonResponse(
-                    {"detail": "Bad request."},
-                    status=status.HTTP_400_BAD_REQUEST)
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            for x in serializers:
+                serializer = x(data=request.data)
+                if (serializer.is_valid() == False):
+                    return JsonResponse(
+                        {"detail": serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
             try:
                 return func(self, request, pk, **kwargs)
             except Exception as e:
                 return JsonResponse(
                     {"detail": " ".join(e.args)}, 
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
         return wrapper
     return decorator
 
@@ -129,6 +145,7 @@ class UserViewSet(viewsets.ModelViewSet):
     ),
     create=extend_schema(
         summary="Создание окружение",
+        description="Создает объект в базе данных, директорию с файлами окружниея, загружет контекст по умолчанию."
     ),
     retrieve=extend_schema(
         summary="Получить информацию о окружении",
@@ -169,7 +186,7 @@ class UserViewSet(viewsets.ModelViewSet):
     removeFile=extend_schema(
         summary="Удалить файл из окружения",
         description="Удаляет файл из окружения по его имени. Независимо от существования файла, возвращает 200 код ответа.",
-        request=FileNameSerializer,
+        request=FileNameSerializer, # не отображается, переместить из body в path через OpenApiParameter.PATH
         responses={
             200: None
         },
@@ -177,7 +194,7 @@ class UserViewSet(viewsets.ModelViewSet):
     readFile=extend_schema(
         summary="Получить файл из окружения",
         description="Получает содержание файла из окружения по его имени.",
-        request=FileNameSerializer,
+        request=FileNameSerializer, # не отображается, переместить из body в path через OpenApiParameter.PATH
         responses={
             200: OpenApiResponse(
                 response={
@@ -187,8 +204,16 @@ class UserViewSet(viewsets.ModelViewSet):
                         "file": {"type": "string"},
                     }
                 }
+            ),
+            404: OpenApiResponse(
+                description="Файл не найден",
+                response={
+                    "type": "object",
+                    "properties": {
+                        "detail": {"type": "string"}
+                    }
+                }
             )
-            # добавить 404 при отсутсвии файла
         },
     ),
     listFiles=extend_schema(
