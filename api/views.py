@@ -6,6 +6,14 @@ from rest_framework.decorators import action, api_view
 
 from django.db.models import Manager
 
+from drf_spectacular.utils import (
+    extend_schema, 
+    extend_schema_view, 
+    OpenApiResponse,
+    OpenApiExample
+)
+from drf_spectacular.types import OpenApiTypes
+
 from http import HTTPMethod
 from typing import List
 from functools import wraps
@@ -16,7 +24,8 @@ from .serializers import (
     EnvironmentSerializer, 
     FileSerializer,
     FileNameSerializer,
-    PromptSerializer
+    PromptSerializer,
+    GeneratePromptSerializer,
 )
 from .services import EnvironmentService
 
@@ -51,6 +60,7 @@ Endpoints:
 api/v1/users/ {list: GET, create: POST}
 api/v1/users/{pk}/ {retrieve: GET, update: PUT, partial_update: PATCH, destroy: DELETE}
 """
+@extend_schema(tags=["Users"])
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -80,6 +90,177 @@ api/v1/environments/{pk}/commit-files {commitFiles: POST}
 api/v1/environments/{pk}/get-context {getContext: GET}
 api/v1/environments/{pk}/clear-context {clearContext: DELETE}
 """
+
+@extend_schema(tags=["Environments"])
+@extend_schema_view(
+    list=extend_schema(
+        summary="Получить список окружений",
+    ),
+    create=extend_schema(
+        summary="Создание окружение",
+    ),
+    retrieve=extend_schema(
+        summary="Получить информацию о окружении",
+    ),
+    update=extend_schema(
+        summary="Обновить существующее окружение",
+    ),
+    partial_update=extend_schema(
+        summary="Обновить определенные поля существующего окружения",
+    ),
+    destroy=extend_schema(
+        summary="Удалить окружение",
+    ),
+    drop=extend_schema(
+        summary="Очистить окружение без его удаления",
+        description="Удаляет файлы окружения и очищаем контекст модели.",
+        request=None,
+        responses={
+            200: None
+        },
+    ),
+    loadFile=extend_schema(
+        summary="Загрузить файл в окружение",
+        description="Загружает один файл в окружение. Если файл с таким именем уже существует, он будет замен полученным файлом.",
+        request=FileSerializer,
+        responses={
+            201: None
+        },
+    ),
+    updateFile=extend_schema(
+        summary="Обновить файл в окружение",
+        description="Дополняет содержимое файла в окружении. Если файла не существует, он будет создан с полученным содержанием файла.",
+        request=FileSerializer,
+        responses={
+            200: None
+        },
+    ),
+    removeFile=extend_schema(
+        summary="Удалить файл из окружения",
+        description="Удаляет файл из окружения по его имени. Независимо от существования файла, возвращает 200 код ответа.",
+        request=FileNameSerializer,
+        responses={
+            200: None
+        },
+    ),
+    readFile=extend_schema(
+        summary="Получить файл из окружения",
+        description="Получает содержание файла из окружения по его имени.",
+        request=FileNameSerializer,
+        responses={
+            200: OpenApiResponse(
+                response={
+                    "type": "object",
+                    "properties": {
+                        "filename": {"type": "string"},
+                        "file": {"type": "string"},
+                    }
+                }
+            )
+            # добавить 404 при отсутсвии файла
+        },
+    ),
+    listFiles=extend_schema(
+        summary="Получить список файлов из окружения",
+        description="Получает список файлов из окружения.",
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                response={
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "filename": {"type": "string"},
+                            "size": {"type": "integer", "format": "int64"},
+                            "updatedAt": {"type": "integer", "format": "int64"},
+                        }
+                    }
+                }
+            )
+        },
+    ),
+    generate=extend_schema(
+        summary="Отправить запрос на генерацию текста по файлам окружения",
+        description="""Отправляет запрос на генерацию текста на основе файлов из окружения и дополнительного запроса, если он есть. 
+                    Этот эндпоинт автоматически загрузит файлы в окружение аналогично commit-files""",
+        request=GeneratePromptSerializer,
+        responses={
+            200: OpenApiResponse(
+                response={
+                    "type": "object", 
+                    "properties": {
+                        "response": {
+                            "type": "string"
+                        }
+                    }
+                }
+            )
+        },
+    ),
+    sendPrompt=extend_schema(
+        summary="Отправить простой запрос на генерацию текста",
+        description="Отправляет простой запрос на генерацию текста модели.",
+        request=PromptSerializer,
+        responses={
+            200: OpenApiResponse(
+                response={
+                    "type": "object", 
+                    "properties": {
+                        "response": {
+                            "type": "string"
+                        }
+                    }
+                },
+            )
+        },
+    ),
+    commitFiles=extend_schema(
+        summary="Загрузить содержание файлов окружения в контекст",
+        description="Загружает содержание файлов окружения в контекст модели. Если файлов не сущетсвует, загружается пустой контекст.",
+        request=None,
+        responses={
+            200: None
+        },
+    ),
+    getContext=extend_schema(
+        summary="Получить историю чата с моделью",
+        description="Получает сообщения из контекста модели. Системные сообщения игнорируются, например, промпт по умолчанию или содержаение файлов.",
+        request=None,
+        responses={
+            200: OpenApiResponse(
+                response={
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "role": {"type": "string"},
+                            "content": {"type": "string"}
+                        }
+                    },
+                },
+                examples=[
+                    OpenApiExample(
+                        name="Пример ответа",
+                        value=[
+                            {"role": "user", "content": "request"},
+                            {"role": "assistant", "content": "response"},
+                        ],
+                        response_only=True,
+                    )
+                ]
+            )
+        },
+    ),
+    clearContext=extend_schema(
+        summary="Очистить контекст модели",
+        description="Очищает контекст модели, оставляя промпт по умолчанию",
+        request={},
+        responses={
+            200: None
+        },
+    ),
+)
 class EnvironmentViewSet(viewsets.ModelViewSet):
     queryset = Environment.objects.all()
     serializer_class = EnvironmentSerializer
@@ -127,12 +308,6 @@ class EnvironmentViewSet(viewsets.ModelViewSet):
     def removeFile(self, request: HttpRequest, pk: str) -> JsonResponse:
         """Удаление файла из окружения"""
 
-        # filename = request.GET.get("filename", None)
-        # if (filename is None):
-        #     return JsonResponse(
-        #         {"detail": "Bad request."},
-        #         status=status.HTTP_400_BAD_REQUEST
-        #     )
         filename = request.data.get("filename", None)
         return self.environmentService.removeFile(pk, filename)
     
@@ -141,12 +316,6 @@ class EnvironmentViewSet(viewsets.ModelViewSet):
     def readFile(self, request: HttpRequest, pk: str) -> JsonResponse:
         """Считывание файла из окружения"""
 
-        # filename = request.GET.get("filename", None)
-        # if (filename is None):
-        #     return JsonResponse(
-        #         {"detail": "Bad request."},
-        #         status=status.HTTP_400_BAD_REQUEST
-        #     )
         filename = request.data.get("filename", None)
         return self.environmentService.readFile(pk, filename)
     
@@ -160,7 +329,7 @@ class EnvironmentViewSet(viewsets.ModelViewSet):
     """For AI Model:"""
     
     @action(url_path="generate", detail=True, methods=[HTTPMethod.POST])
-    @serialize(queryset=queryset)
+    @serialize(queryset=queryset, serializers=[GeneratePromptSerializer])
     def generate(self, request: HttpRequest, pk: str) -> JsonResponse:
         """Отправка запроса модели на генерацию текстового файла на основе файлов из окружения и дополнительного запроса"""
         
