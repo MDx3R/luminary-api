@@ -23,8 +23,11 @@ class EnvironmentSerializer(serializers.ModelSerializer):
         }
 
 class FileSerializer(serializers.Serializer):
-    filename = serializers.CharField(max_length=50)
+    # filename = serializers.CharField(max_length=50)
     file = serializers.FileField()
 
 class FileNameSerializer(serializers.Serializer):
-    filename = serializers.CharField(max_length=50)
+    filename = serializers.CharField(max_length=50, allow_blank=False, allow_null=False)
+
+class PromptSerializer(serializers.Serializer):
+    prompt = serializers.CharField(min_length=1, max_length=512)
