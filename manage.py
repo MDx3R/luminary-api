@@ -4,13 +4,10 @@ import os
 import sys
 from dotenv import load_dotenv
 
+from api.connections import GPTConnection
 
 def main():
     """Run administrative tasks."""
-
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-    if os.path.exists(dotenv_path):
-        load_dotenv()
 
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'base.settings')
     try:
@@ -23,6 +20,16 @@ def main():
         ) from exc
     execute_from_command_line(sys.argv)
 
-
 if __name__ == '__main__':
+    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+    if os.path.exists(dotenv_path):
+        load_dotenv()
+
+    print("Creating connection to OpenAI API")
+    GPTConnection(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        url=os.getenv("OPENAI_API_URL")
+    )
+    print("Connection created")
+    
     main()
