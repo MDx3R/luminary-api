@@ -31,3 +31,6 @@ class FileNameSerializer(serializers.Serializer):
 
 class PromptSerializer(serializers.Serializer):
     prompt = serializers.CharField(min_length=1, max_length=512)
+
+class GeneratePromptSerializer(serializers.Serializer):
+    prompt = serializers.CharField(min_length=1, max_length=512, allow_null=True)
