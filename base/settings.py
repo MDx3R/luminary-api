@@ -26,7 +26,15 @@ SECRET_KEY = 'django-insecure-+j-(41p6ht-dui#4(^x4eheo-b5$rtg8lcm34yn&cr!hfff#d%
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG') != 'False'
 
+# APPEND_SLASH = True
+
 ALLOWED_HOSTS = ['*']
+
+CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ORIGIN_WHITELIST = (
+#     'http://localhost:3000',
+#     'http://127.0.0.1:3000'
+# )
 
 
 # Application definition
@@ -39,12 +47,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
+    'corsheaders',
+
     'rest_framework',
     'rest_framework.authtoken',
 
     'drf_spectacular', 
 
-    'api'
+    'api',
 ]
 
 MIDDLEWARE = [
@@ -55,6 +65,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'base.urls'
