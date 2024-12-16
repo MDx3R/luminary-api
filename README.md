@@ -18,5 +18,6 @@ python manage.py runserver
 - `DB_HOST` - Адрес для подключения
 - `DB_PORT` - Порт для подключения
 
-- `OPENAI_API_KEY` - Ключ API для модели GPT
+- `OPENAI_API_KEY` - Ключ API для модели
 - `OPENAI_API_URL` - URL для API модели
+- `MODEL_NAME` - Наименование модели (рекомендуется gpt-4o-mini)

@@ -28,7 +28,8 @@ if __name__ == '__main__':
     print("Creating connection to OpenAI API")
     GPTConnection(
         api_key=os.getenv("OPENAI_API_KEY"),
-        url=os.getenv("OPENAI_API_URL")
+        url=os.getenv("OPENAI_API_URL"),
+        model=os.getenv("MODEL_NAME")
     )
     print("Connection created")
     
