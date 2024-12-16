@@ -10,6 +10,7 @@ from typing import Dict, List, Iterator, overload, Union
 from .base import once, Singleton
 from .managers import FileManager, LocalFileManager, RemoteFileManager
 from .connections import GPTConnection
+
 # Create your services here.
 
 class Service(Singleton):
@@ -37,7 +38,7 @@ class FileService(Service):
 
         return self.fileManager.listFiles(path=path)
     
-    def listFilesStat(self, path: str) -> List[str]:
+    def listFilesStat(self, path: str) -> List[Dict]:
         """Возвращает список файлов директории"""
 
         return self.fileManager.listFilesStat(path=path)
@@ -78,15 +79,16 @@ class FileService(Service):
         if (returning):
             return file
         return None
-
-    def removeFile(self, path: str, filename: str) -> None:
-        """Удаляет файл с именем `filename`"""
-        return self.fileManager.removeFile(path, filename)
     
     def createDir(self, path: str) -> None:
-        """Возвращает список файлов директории"""
+        """Создает директорию"""
         if (self.fileManager.exists(path) == False):
             self.fileManager.makeDir(path)
+
+    def removeDir(self, path: str) -> None:
+        """Удаляет директорию"""
+        if (self.fileManager.exists(path)):
+            self.fileManager.removeDir(path)
 
     def clearDir(self, path: str) -> None:
         """Очищает директорию"""
@@ -108,35 +110,41 @@ class GPTService(Service):
             self.tokens = 0
             self.commited = False
 
-    connection = None
+    connection: GPTConnection = None
+
+    default_context: List[Dict[str, str]] = [
+        {
+            "role": "system",
+            "content": "You're a helpful assistant who answers questions, generates information based on the files if they are given. Use only plain text without formatting."
+        }
+    ]
+    tokenLimit: int = 10000
+    prompts: Dict[str, str] = {
+        "generate": "Based on the files you previously got find similarities and generate a response.",
+        "generate-instructed": "Based on the files you previously got generate a response according to these instructions: ",
+        "fix": "Try to write this part of generated file differently:",
+    }
 
     @once
     def __init__(self):
         self.connection = GPTConnection()
-        self.model: str = "gpt-4o-mini"
-        self.default_context: List[Dict[str, str]] = [{
-                "role": "system",
-                "content": "You're a helpful assistant who answers questions, generates information based on the files if they are given. Use only plain text without formatting."
-            }]
-        self.tokenLimit: int = 10000
         self.conversations: Dict[str, GPTService.Chat] = {}
-        self.prompts: Dict[str, str] = {
-            "generate": "Based on the files you previously got find similarities and generate a response.",
-            "generate-instructed": "Based on the files you previously got generate a response according to these instructions: ",
-            "fix": "Try to write this part of generated file differently:",
-        }
 
     def getConversation(self, id: str) -> Chat:
         """Получает чат с моделью по id окружения"""
         result = self.conversations.get(id, None)
         if (result is None):
+            result = self.createConversation(id)
             # Добавить подгрузку из БД: есть - return, нет - KeyError
-            raise KeyError(f"id: {id} not found in conversations")
+            # raise KeyError(f"id: {id} not found in conversations")
         return result
 
     def createConversation(self, id: str, files: List[Dict[str, str]] = [], context: List[Dict[str, str]] = []) -> Chat:
         """Создает или заменяет чат с моделью по id окружения"""
         print(files)
+
+        # Добавить загрузку в БД
+
         chat = self.conversations[id] = GPTService.Chat(
                 messages=self.default_context + files + context, 
                 commited=bool(len(files))
@@ -145,6 +153,9 @@ class GPTService(Service):
 
     def closeConversation(self, id: str) -> None:
         """Удаляет чат с моделью по id окружения"""
+
+        # Добавить удаление из БД
+
         self.conversations.pop(id, None)
 
     def sendMessage(self, id: str, prompt: str) -> str:
@@ -162,7 +173,7 @@ class GPTService(Service):
         )
 
         completion = self.connection.client.chat.completions.create(
-            model=self.model,
+            model=self.connection.model,
             messages=chat.messages
         )
 
@@ -207,6 +218,10 @@ class EnvironmentService(Service):
     def createEnvironment(self, id: str) -> None:
         self.fileService.createDir(id)
         self.gptService.createConversation(id)
+
+    def removeEnvironment(self, id: str) -> None:
+        self.fileService.removeDir(id)
+        self.gptService.closeConversation(id)
 
     def clearEnvironment(self, id: str) -> JsonResponse:
         """Очищает файлы окружения и контекст модели"""

@@ -37,7 +37,6 @@ from .serializers import (
     PromptSerializer,
     GeneratePromptSerializer,
 )
-from .responses import ExceptionResponse
 from .services import EnvironmentService
 
 # Create your views here.
@@ -332,6 +331,7 @@ class EnvironmentViewSet(viewsets.ModelViewSet):
         serializer.save()
 
     def perform_destroy(self, instance):
+        self.environmentService.removeEnvironment(str(instance.id))
         instance.delete()
 
     @action(url_path="drop", detail=True, methods=[HTTPMethod.POST])
